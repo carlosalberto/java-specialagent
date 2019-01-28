@@ -55,6 +55,8 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <version.bytebuddy>1.9.6</version.bytebuddy>
     <version.opentracing>0.31.0</version.opentracing>
+    <version.lightstep>0.14.8</version.lightstep>
+    <version.lightstep-tracer-grpc>0.15.10</version.lightstep-tracer-grpc>
   </properties>
   <profiles>
     <profile>
@@ -315,7 +317,7 @@
       <dependency>
         <groupId>org.jboss.byteman</groupId>
         <artifactId>byteman</artifactId>
-        <version>4.0.6-SNAPSHOT</version>
+        <version>4.0.5</version>
       </dependency>
       <dependency>
         <groupId>net.bytebuddy</groupId>
@@ -333,6 +335,34 @@
         <version>4.12</version>
         <scope>test</scope>
       </dependency>
+
+      <!-- LS specific -->
+      <dependency>
+        <groupId>com.lightstep.tracer</groupId>
+        <artifactId>lightstep-tracer-jre</artifactId>
+        <version>${version.lightstep}</version>
+      </dependency>
+      <dependency>
+          <groupId>com.lightstep.tracer</groupId>
+          <artifactId>tracer-grpc</artifactId>
+          <version>${version.lightstep-tracer-grpc}</version>
+      </dependency>
+      <dependency>
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-simple</artifactId>
+          <version>1.7.25</version>
+      </dependency>
+      <dependency>
+          <groupId>io.grpc</groupId>
+          <artifactId>grpc-netty</artifactId>
+          <version>1.14.0</version>
+      </dependency>
+      <dependency>
+	  <groupId>io.netty</groupId>
+	  <artifactId>netty-tcnative-boringssl-static</artifactId>
+	  <version>2.0.12.Final</version>
+      </dependency>
+
     </dependencies>
   </dependencyManagement>
   <distributionManagement>

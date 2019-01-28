@@ -168,6 +168,9 @@ public class SpecialAgent {
       logger.log(Level.SEVERE, "Could not find " + DEPENDENCIES + " in any plugin JARs");
 
     loadRules();
+
+    /* LS specific */
+    AgentRunnerUtil.initializeTracer();
   }
 
   static class AllPluginsClassLoader extends URLClassLoader {

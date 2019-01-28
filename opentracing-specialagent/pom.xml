@@ -147,7 +147,29 @@
       <version>5.0.3</version>
       <optional>true</optional>
     </dependency>
-    
+
+    <!-- LS -->
+    <dependency>
+      <groupId>com.lightstep.tracer</groupId>
+      <artifactId>lightstep-tracer-jre</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>com.lightstep.tracer</groupId>
+      <artifactId>tracer-grpc</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-netty</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-tcnative-boringssl-static</artifactId>
+    <optional>true</optional>
+    </dependency>
+
     <!--
     <dependency>
       <!- https://github.com/opentracing-contrib/java-hazelcast ->
