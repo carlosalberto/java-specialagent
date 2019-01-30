@@ -40,6 +40,10 @@ import java.util.zip.ZipInputStream;
 
 import com.sun.tools.attach.VirtualMachine;
 
+import io.opentracing.Tracer;
+import io.opentracing.util.GlobalTracer;
+import io.opentracing.contrib.tracerprovider.TracerProvider;
+
 /**
  * The SpecialAgent.
  *
@@ -140,6 +144,8 @@ public class SpecialAgent {
     if (logger.isLoggable(Level.FINEST))
       logger.finest("Agent#initialize() java.class.path:\n  " + System.getProperty("java.class.path").replace(File.pathSeparator, "\n  "));
 
+    loadTracer();
+
     final Set<URL> pluginJarUrls = Util.findJarResources("META-INF/opentracing-specialagent/");
     if (logger.isLoggable(Level.FINE))
       logger.fine("Must be running from a test, because no JARs were found under META-INF/opentracing-specialagent/");
@@ -168,6 +174,30 @@ public class SpecialAgent {
       logger.log(Level.SEVERE, "Could not find " + DEPENDENCIES + " in any plugin JARs");
 
     loadRules();
+  }
+
+  static void loadTracer() {
+    Iterable<TracerProvider> providers = TracerProvider.loadCandidates();
+
+    for (TracerProvider provider: providers) {
+      String configPrefix = provider.getConfigurationPrefix();
+      Map<String, String> settings = new HashMap<String, String>();
+
+      for (Map.Entry<Object, Object> entry: System.getProperties().entrySet()) {
+        String key = (String)entry.getKey();
+        String value = (String)entry.getValue();
+
+        if (key.startsWith(provider.getConfigurationPrefix()))
+          settings.put(key.substring(configPrefix.length()), value);
+      }
+
+      Tracer tracer = provider.createTracer(settings);
+      if (tracer != null) {
+        GlobalTracer.register(tracer);
+        return;
+      }
+    }
+
   }
 
   static class AllPluginsClassLoader extends URLClassLoader {

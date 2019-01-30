@@ -47,6 +47,7 @@
   <modules>
     <module>opentracing-specialagent-api</module>
     <module>opentracing-specialagent</module>
+    <module>opentracing-tracerprovider</module>
     <module>plugins</module>
   </modules>
   <properties>
@@ -315,7 +316,7 @@
       <dependency>
         <groupId>org.jboss.byteman</groupId>
         <artifactId>byteman</artifactId>
-        <version>4.0.6-SNAPSHOT</version>
+        <version>4.0.5</version>
       </dependency>
       <dependency>
         <groupId>net.bytebuddy</groupId>
