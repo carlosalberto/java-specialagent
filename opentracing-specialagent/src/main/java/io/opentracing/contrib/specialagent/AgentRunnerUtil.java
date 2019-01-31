@@ -15,7 +15,6 @@
 
 package io.opentracing.contrib.specialagent;
 
-import java.net.MalformedURLException;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -78,39 +77,6 @@ public class AgentRunnerUtil {
         GlobalTracer.register(tracer);
 
       return AgentRunnerUtil.tracer = tracer instanceof MockTracer ? tracer : new ProxyTracer(tracer);
-    }
-  }
-
-  static void initializeTracer() {
-    if (tracer != null)
-      return;
-
-    synchronized (tracerMutex) {
-      if (tracer != null)
-        return;
-
-      String accessToken = System.getProperty("ls.accessToken");
-      if (accessToken == null)
-        return;
-
-      logger.info("Attempting to create LS tracer with access token = " + accessToken);
-
-      Tracer lsTracer = null;
-      try {
-        lsTracer = new com.lightstep.tracer.jre.JRETracer(
-                new com.lightstep.tracer.shared.Options.OptionsBuilder()
-                .withAccessToken(accessToken)
-                .withComponentName("SpecialAgentSampleApp")
-                .build()
-        );
-      } catch (MalformedURLException e) {
-        logger.warning("Got an exception initializing the LightStep Tracer = " + e);
-        return;
-      }
-
-      GlobalTracer.register(lsTracer);
-
-      AgentRunnerUtil.tracer = new ProxyTracer(lsTracer);
     }
   }
 

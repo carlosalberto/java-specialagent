@@ -170,7 +170,7 @@ public class SpecialAgent {
     loadRules();
 
     /* LS specific */
-    AgentRunnerUtil.initializeTracer();
+    LightStepTracerInitializer.initializeTracer();
   }
 
   static class AllPluginsClassLoader extends URLClassLoader {
