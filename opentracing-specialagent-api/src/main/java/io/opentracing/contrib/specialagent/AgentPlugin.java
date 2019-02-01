@@ -18,7 +18,7 @@ package io.opentracing.contrib.specialagent;
 import net.bytebuddy.agent.builder.AgentBuilder;
 
 public interface AgentPlugin {
-  abstract AgentBuilder buildAgent(String agentArgs) throws Exception;
+  abstract Iterable<? extends AgentBuilder> buildAgent(String agentArgs) throws Exception;
 //  ElementMatcher<? super MethodDescription> onMethod();
 //  DynamicAdvice advice();
 }
