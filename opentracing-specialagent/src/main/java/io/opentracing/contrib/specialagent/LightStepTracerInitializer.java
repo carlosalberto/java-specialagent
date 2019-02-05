@@ -43,6 +43,7 @@ public class LightStepTracerInitializer {
       logger.log(Level.INFO, "Trying to create the LightStep Tracer with the following parameters:");
       logger.log(Level.INFO, " componentName = " + componentName);
       logger.log(Level.INFO, " collectorHost = " + collectorHost);
+      logger.log(Level.INFO, " collectorPort = " + collectorPort);
       logger.log(Level.INFO, " collectorProtocol = " + collectorProtocol);
 
       Options.OptionsBuilder opts = new Options.OptionsBuilder().withAccessToken(accessToken);
@@ -51,6 +52,9 @@ public class LightStepTracerInitializer {
 
       if (collectorHost != null)
         opts = opts.withCollectorHost(collectorHost);
+
+      if (collectorPort != null)
+        opts = opts.withCollectorPort(Integer.valueOf(collectorPort));
 
       if (collectorProtocol != null)
         opts = opts.withCollectorProtocol(collectorProtocol);
