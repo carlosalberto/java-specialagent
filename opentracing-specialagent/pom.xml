@@ -32,6 +32,23 @@
           <name>deploy</name>
         </property>
       </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>io.opentracing.contrib</groupId>
+            <artifactId>specialagent-maven-plugin</artifactId>
+            <version>${project.version}</version>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>verify</goal>
+                </goals>
+                <phase>verify</phase>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
       <dependencies>
         <dependency>
           <groupId>io.opentracing.contrib</groupId>
@@ -66,6 +83,24 @@
         <dependency>
           <groupId>io.opentracing.contrib</groupId>
           <artifactId>opentracing-specialagent-camel</artifactId>
+          <version>${project.version}</version>
+          <scope>provided</scope>
+        </dependency>
+        <dependency>
+          <groupId>io.opentracing.contrib</groupId>
+          <artifactId>opentracing-specialagent-aws-sdk</artifactId>
+          <version>${project.version}</version>
+          <scope>provided</scope>
+        </dependency>
+        <dependency>
+          <groupId>io.opentracing.contrib</groupId>
+          <artifactId>opentracing-specialagent-cassandra-driver</artifactId>
+          <version>${project.version}</version>
+          <scope>provided</scope>
+        </dependency>
+        <dependency>
+          <groupId>io.opentracing.contrib</groupId>
+          <artifactId>opentracing-specialagent-jms</artifactId>
           <version>${project.version}</version>
           <scope>provided</scope>
         </dependency>
@@ -134,11 +169,6 @@
     <dependency>
       <groupId>net.bytebuddy</groupId>
       <artifactId>byte-buddy-agent</artifactId>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
-      <groupId>org.jboss.byteman</groupId>
-      <artifactId>byteman</artifactId>
       <optional>true</optional>
     </dependency>
     <dependency>
@@ -496,19 +526,6 @@
       </exclusions>
     </dependency>
     <dependency>
-      <!- https://github.com/opentracing-contrib/java-aws-sdk -> <!- !! ->
-      <groupId>io.opentracing.contrib</groupId>
-      <artifactId>opentracing-aws-sdk</artifactId>
-      <version>0.0.5</version>
-      <scope>provided</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>com.amazonaws</groupId>
-          <artifactId>aws-java-sdk</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
       <!- https://github.com/opentracing-contrib/java-elasticsearch-client -> <!- !! ->
       <groupId>io.opentracing.contrib</groupId>
       <artifactId>opentracing-elasticsearch5-client</artifactId>
@@ -543,43 +560,6 @@
         <exclusion>
           <groupId>com.rabbitmq</groupId>
           <artifactId>amqp-client</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>io.opentracing.contrib</groupId>
-      <artifactId>opentracing-cassandra-driver</artifactId>
-      <version>0.0.8</version>
-      <scope>provided</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>com.datastax.cassandra</groupId>
-          <artifactId>cassandra-driver-core</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <!- https://github.com/opentracing-contrib/java-jms -> <!- !! ->
-      <groupId>io.opentracing.contrib</groupId>
-      <artifactId>opentracing-jms-1</artifactId>
-      <version>0.0.10</version>
-      <scope>provided</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>javax.jms</groupId>
-          <artifactId>jms-api</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>io.opentracing.contrib</groupId>
-      <artifactId>opentracing-jms-2</artifactId>
-      <version>0.0.10</version>
-      <scope>provided</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>javax.jms</groupId>
-          <artifactId>javax.jms-api</artifactId>
         </exclusion>
       </exclusions>
     </dependency>

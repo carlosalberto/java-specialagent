@@ -25,6 +25,9 @@ import java.lang.annotation.Target;
 import java.lang.instrument.Instrumentation;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -33,41 +36,39 @@ import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.logging.Level;
-import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
 import org.junit.Assert;
 import org.junit.rules.TestRule;
+import org.junit.runner.notification.RunNotifier;
 import org.junit.runners.BlockJUnit4ClassRunner;
 import org.junit.runners.model.FrameworkField;
 import org.junit.runners.model.FrameworkMethod;
 import org.junit.runners.model.InitializationError;
 import org.junit.runners.model.TestClass;
 
+import io.opentracing.contrib.specialagent.Manager.Event;
 import net.bytebuddy.agent.ByteBuddyAgent;
 
 /**
  * A JUnit runner that is designed to run tests for instrumentation plugins that
- * have an associated {@code otarules.btm} file for automatic instrumentation
- * via Byteman.
+ * have auto-instrumentation rules implemented as per the {@link AgentPlugin}
+ * API.
  * <p>
- * The {@code AgentRunner} spawns a child process that executes the JUnit test
- * with an argument specifying {@code -javaagent}. The {@code AgentRunner}
- * establishes a socket-based communication with the child process to relay test
- * results. This architecture allows tests with the
+ * The {@code AgentRunner} uses ByteBuddy's self-attach methodology to obtain
+ * the {@code Instrumentation} instance. This architecture allows tests with the
  * {@code @RunWith(AgentRunner.class)} annotation to be run from any environment
  * (i.e. from Maven's Surefire plugin, from an IDE, or directly via JUnit
  * itself).
  * <p>
- * The {@code AgentRunner} also has a facility to "raise" the classes loaded for
- * the purpose of the test into an isolated {@code ClassLoader} (see
+ * The {@code AgentRunner} has a facility to "raise" the classes loaded for the
+ * purpose of the test into an isolated {@code ClassLoader} (see
  * {@link Config#isolateClassLoader()}). This allows the test to ensure that
  * instrumentation is successful for classes that are loaded in a
  * {@code ClassLoader} that is not the System or Bootstrap {@code ClassLoader}.
  * <p>
  * The {@code AgentRunner} also has a facility to aide in debugging of the
- * runner's runtime, as well as Byteman's runtime (see {@link Config#debug()}
- * and {@link Config#verbose()}).
+ * runner's runtime Please refer to {@link Config}.
  *
  * @author Seva Safris
  */
@@ -101,12 +102,16 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
       return inst;
 
     try {
-      System.err.println("\n\n\n===============================================================");
+      if (logger.isLoggable(Level.FINE))
+        logger.fine("\n>>>>>>>>>>>>>>>>>>>>>>> Installing Agent <<<<<<<<<<<<<<<<<<<<<<<\n");
+
       // FIXME: Can this be done in a better way?
       final JarFile jarFile = createJarFileOfSource(AgentRunner.class);
       final Instrumentation inst = ByteBuddyAgent.install();
       inst.appendToBootstrapClassLoaderSearch(jarFile);
-      System.err.println("===============================================================\n\n\n");
+      if (logger.isLoggable(Level.FINE))
+        logger.fine("\n================== Installing BootLoaderAgent ==================\n");
+
       BootLoaderAgent.premain(inst, jarFile);
       return inst;
     }
@@ -114,6 +119,8 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
       throw new ExceptionInInitializerError(e);
     }
   }
+
+  private static final Path CWD = FileSystems.getDefault().getPath("").toAbsolutePath();
 
   static {
     inst = install();
@@ -125,20 +132,35 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
   @Target(ElementType.TYPE)
   @Retention(RetentionPolicy.RUNTIME)
   public @interface Config {
-    /**
-     * @return Whether to set Java logging level to {@link Level#FINEST}.
-     *         <p>
-     *         Default: {@code false}.
-     */
-    boolean debug() default false;
+    public enum Log {
+      SEVERE(Level.SEVERE),
+      WARNING(Level.WARNING),
+      INFO(Level.INFO),
+      CONFIG(Level.CONFIG),
+      FINE(Level.FINE),
+      FINER(Level.FINER),
+      FINEST(Level.FINEST);
+
+      final Level level;
+
+      Log(final Level level) {
+        this.level = level;
+      }
+    }
 
     /**
-     * @return Whether to activate Byteman verbose logging via
-     *         {@code -Dorg.jboss.byteman.verbose}.
+     * @return Logging level.
      *         <p>
-     *         Default: {@code false}.
+     *         Default: {@link Log#WARNING}.
      */
-    boolean verbose() default false;
+    Log log() default Log.WARNING;
+
+    /**
+     * @return Output re/transformer events.
+     *         <p>
+     *         Default: <code>{}</code>.
+     */
+    Event[] events() default {};
 
     /**
      * @return Whether the tests should be run in a {@code ClassLoader} that is
@@ -147,13 +169,6 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
      *         Default: {@code true}.
      */
     boolean isolateClassLoader() default true;
-
-    /**
-     * @return Which {@link Instrumenter} to use for the tests.
-     *         <p>
-     *         Default: {@link Instrumenter#BYTEBUDDY}.
-     */
-    Instrumenter instrumenter() default Instrumenter.BYTEBUDDY;
   }
 
   /**
@@ -233,7 +248,6 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
   }
 
   private final Config config;
-  private final URL loggingConfigFile;
 
   /**
    * Creates a new {@code AgentRunner} for the specified test class.
@@ -246,19 +260,60 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
   public AgentRunner(final Class<?> testClass) throws InitializationError {
     super(testClass.getAnnotation(Config.class) == null || testClass.getAnnotation(Config.class).isolateClassLoader() ? loadClassInIsolatedClassLoader(testClass) : testClass);
     this.config = testClass.getAnnotation(Config.class);
-    this.loggingConfigFile = config != null && config.debug() ? getClass().getResource("/logging.properties") : null;
+    if (config != null) {
+      if (config.log() != Config.Log.INFO) {
+        final String logLevelProperty = System.getProperty(SpecialAgent.LOGGING_PROPERTY);
+        if (logLevelProperty != null)
+          logger.warning(SpecialAgent.LOGGING_PROPERTY + " system property is specified on command line, and @" + AgentRunner.class.getSimpleName() + "." + Config.class.getSimpleName() + ".log is specified in " + testClass.getName());
+        else
+          System.setProperty(SpecialAgent.LOGGING_PROPERTY, String.valueOf(config.log()));
+      }
+
+      final Event[] events = config.events();
+      if (events.length > 0) {
+        final String eventsProperty = System.getProperty(SpecialAgent.EVENTS_PROPERTY);
+        if (eventsProperty != null) {
+          logger.warning(SpecialAgent.EVENTS_PROPERTY + " system property is specified on command line, and @" + AgentRunner.class.getSimpleName() + "." + Config.class.getSimpleName() + ".events is specified in " + testClass.getName());
+        }
+        else {
+          final StringBuilder builder = new StringBuilder();
+          for (final Event event : events)
+            builder.append(event).append(",");
+
+          builder.setLength(builder.length() - 1);
+          System.setProperty(SpecialAgent.EVENTS_PROPERTY, builder.toString());
+        }
+      }
+    }
+
     try {
-      if (loggingConfigFile != null)
-        LogManager.getLogManager().readConfiguration(loggingConfigFile.openStream());
-
-      System.setProperty(SpecialAgent.INSTRUMENTER, config.instrumenter().name());
-      if (config.verbose())
-        System.setProperty("org.jboss.byteman.verbose", "true");
-
       SpecialAgent.premain(null, inst);
     }
     catch (final Throwable e) {
       e.printStackTrace();
+    }
+  }
+
+  private int delta = Integer.MAX_VALUE;
+
+  static File getManifestFile() {
+    return new File(CWD.toFile(), "target/classes/META-INF/opentracing-specialagent/TEST-MANIFEST.MF");
+  }
+
+  @Override
+  public void run(final RunNotifier notifier) {
+    super.run(notifier);
+    if (delta == 0) {
+      try {
+        final File manifestFile = getManifestFile();
+        manifestFile.getParentFile().mkdirs();
+        final Path path = manifestFile.toPath();
+        if (!Files.exists(path))
+          Files.createFile(path);
+      }
+      catch (final IOException e) {
+        throw new IllegalStateException(e);
+      }
     }
   }
 
@@ -280,7 +335,7 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
       public List<FrameworkMethod> getAnnotatedMethods(final Class<? extends Annotation> annotationClass) {
         final List<FrameworkMethod> retrofitted = new ArrayList<>();
         for (final FrameworkMethod method : super.getAnnotatedMethods(annotationClass))
-          retrofitted.add(retrofitMethod(method, testClass.getClassLoader()));
+          retrofitted.add(retrofitMethod(method));
 
         return Collections.unmodifiableList(retrofitted);
       }
@@ -291,7 +346,7 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
         for (final Map.Entry<Class<? extends Annotation>,List<FrameworkMethod>> entry : methodsForAnnotations.entrySet()) {
           final ListIterator<FrameworkMethod> iterator = entry.getValue().listIterator();
           while (iterator.hasNext())
-            iterator.set(retrofitMethod(iterator.next(), testClass.getClassLoader()));
+            iterator.set(retrofitMethod(iterator.next()));
         }
       }
     };
@@ -304,7 +359,7 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
    * @param method The {@code FrameworkMethod} to retrofit.
    * @return The retrofitted {@code FrameworkMethod}.
    */
-  private FrameworkMethod retrofitMethod(final FrameworkMethod method, final ClassLoader classLoader) {
+  private FrameworkMethod retrofitMethod(final FrameworkMethod method) {
     return new FrameworkMethod(method.getMethod()) {
       @Override
       public void validatePublicVoidNoArg(final boolean isStatic, final List<Throwable> errors) {
@@ -315,15 +370,21 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
 
       @Override
       public Object invokeExplosively(final Object target, final Object ... params) throws Throwable {
+        if (delta == Integer.MAX_VALUE)
+          delta = 0;
+
+        ++delta;
         if (logger.isLoggable(Level.FINEST))
           logger.finest("invokeExplosively [" + getName() + "](" + target + ")");
 
-        if (config.isolateClassLoader()) {
+        if (config == null || config.isolateClassLoader()) {
           final ClassLoader classLoader = isStatic() ? method.getDeclaringClass().getClassLoader() : target.getClass().getClassLoader();
           Assert.assertEquals("Method " + getName() + " should be executed in URLClassLoader", URLClassLoader.class, classLoader == null ? null : classLoader.getClass());
         }
 
-        return method.getMethod().getParameterTypes().length == 1 ? super.invokeExplosively(target, AgentRunnerUtil.getTracer()) : super.invokeExplosively(target);
+        final Object object = method.getMethod().getParameterTypes().length == 1 ? super.invokeExplosively(target, AgentRunnerUtil.getTracer()) : super.invokeExplosively(target);
+        --delta;
+        return object;
       }
     };
   }
