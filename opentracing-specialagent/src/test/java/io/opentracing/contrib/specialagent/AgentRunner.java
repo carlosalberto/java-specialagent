@@ -65,7 +65,7 @@ import net.bytebuddy.agent.ByteBuddyAgent;
  * purpose of the test into an isolated {@code ClassLoader} (see
  * {@link Config#isolateClassLoader()}). This allows the test to ensure that
  * instrumentation is successful for classes that are loaded in a
- * {@code ClassLoader} that is not the System or Bootstrap {@code ClassLoader}.
+ * class loader that is not the System or Bootstrap class loader.
  * <p>
  * The {@code AgentRunner} also has a facility to aide in debugging of the
  * runner's runtime Please refer to {@link Config}.
@@ -97,6 +97,25 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
     throw new UnsupportedOperationException("Unsupported source path: " + testClassesPath);
   }
 
+  private static void absorbProperties() {
+    final String sunJavaCommand = System.getProperty("sun.java.command");
+    if (sunJavaCommand == null)
+      return;
+
+    final String[] parts = sunJavaCommand.split("\\s+-");
+    for (int i = 0; i < parts.length; ++i) {
+      final String part = parts[i];
+      if (part.charAt(0) != 'D')
+        continue;
+
+      final int index = part.indexOf('=');
+      if (index == -1)
+        System.setProperty(part.substring(1), "");
+      else
+        System.setProperty(part.substring(1, index), part.substring(index + 1));
+    }
+  }
+
   static Instrumentation install() {
     if (inst != null)
       return inst;
@@ -123,6 +142,7 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
   private static final File CWD = new File("").getAbsoluteFile();
 
   static {
+    absorbProperties();
     inst = install();
   }
 
@@ -163,10 +183,30 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
     Event[] events() default {};
 
     /**
-     * @return Whether the tests should be run in a {@code ClassLoader} that is
-     *         isolated from the system {@code ClassLoader}.
+     * @return Whether the tests should be run in a class loader that is
+     *         isolated from the system class loader (i.e. a {@code ClassLoader}
+     *         with a {@code null} parent). <blockquote> <i><b>Important</b>:
+     *         All attempts should be taken to avoid setting this property to
+     *         {@code false}.
      *         <p>
-     *         Default: {@code true}.
+     *         It is important to note that this option should only be set to
+     *         {@code false} in special situations, such as if a test relies on
+     *         an integrated module that does not function properly if the class
+     *         loader of its classes is isolated.
+     *         <p>
+     *         If this property is set to {@code false}, the {@code AgentRunner}
+     *         runtime disables all testing that asserts proper functionality of
+     *         the plugin when the 3rd-party library it is instrumenting is
+     *         loaded in a class loader that is _not_ the system class loader.
+     *         <p>
+     *         <ins>By disabling this facet of the {@code AgentRunner}, the test
+     *         may pass, but the plugin may fail in real-world
+     *         application.</ins>
+     *         <p>
+     *         If this property is set to {@code false}, the build will print a
+     *         <b>WARN</b>-level log message, to warn the developer that
+     *         {@code isolateClassLoader=false}.</i> </blockquote> Default:
+     *         {@code true}.
      */
     boolean isolateClassLoader() default true;
   }
@@ -313,6 +353,9 @@ public class AgentRunner extends BlockJUnit4ClassRunner {
           System.setProperty(SpecialAgent.EVENTS_PROPERTY, builder.toString());
         }
       }
+
+      if (!config.isolateClassLoader())
+        logger.warning("`isolateClassLoader=false`\nAll attempts should be taken to avoid setting `isolateClassLoader=false`");
     }
 
     try {
